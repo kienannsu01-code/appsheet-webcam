@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chụp ảnh tem cỡ</title>
+
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      background: #f3f6fb;
+      color: #202124;
+      font-family: Arial, sans-serif;
+    }
+
+    main {
+      max-width: 720px;
+      margin: auto;
+    }
+
+    h1 { font-size: 24px; }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 2px 8px #00000012;
+    }
+
+    .scan-id {
+      color: #1558a6;
+      font-weight: bold;
+      overflow-wrap: anywhere;
+      margin-top: 8px;
+    }
+
+    select, button {
+      width: 100%;
+      padding: 13px;
+      margin-top: 10px;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+
+    select { border: 1px solid #c5c9d0; background: white; }
+
+    button {
+      border: 0;
+      background: #1967d2;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button.secondary { background: #5f6368; }
+    button.save { background: #188038; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+
+    video, #preview {
+      display: block;
+      width: 100%;
+      max-height: 65vh;
+      margin-top: 12px;
+      background: #111;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+
+    #status {
+      margin-top: 12px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      line-height: 1.5;
+    }
+
+    .hidden { display: none !important; }
+    .hint { color: #5f6368; font-size: 13px; line-height: 1.5; }
+  </style>
+
+
+</head>
+
+
+<body>
+<main>
+  <h1>Chụp ảnh tem cỡ</h1>
+
+
+  <section class="card">
+    <div>SCAN_ID của bản ghi:</div>
+    <div class="scan-id" id="scanIdText">Đang đọc...</div>
+    <div id="recordStatus">Đang kiểm tra...</div>
+  </section>
+
+
+  <section class="card">
+    <label for="cameraSelect"><b>Chọn webcam</b></label>
+    <select id="cameraSelect"></select>
+
+
+<button id="startBtn">Kết nối camera</button>
+
+<video id="video" autoplay playsinline muted></video>
+<img id="preview" class="hidden" alt="Ảnh tem đã chụp">
+<canvas id="canvas" class="hidden"></canvas>
+
+<button id="captureBtn" disabled>Chụp ảnh</button>
+<button id="retakeBtn" class="secondary hidden">Chụp lại</button>
+<button id="saveBtn" class="save" disabled>
+Xác nhận và lưu vào AppSheet
+</button>
+
+<div id="status" role="status">Đang khởi tạo...</div>
+<p class="hint">
+Nếu trình duyệt yêu cầu quyền camera, hãy chọn Cho phép.
+Sau khi lưu thành công, quay lại AppSheet và đồng bộ dữ liệu.
+</p>
+
+  </section>
+</main>
+
+
+<!-- Form và iframe dùng để gửi dữ liệu đến Apps Script
+     mà không phụ thuộc google.script.run hoặc fetch CORS. -->
+
+
+<iframe name="apiFrame" id="apiFrame" class="hidden"></iframe>
+<form id="apiForm" method="post" target="apiFrame"
+      enctype="application/x-www-form-urlencoded" class="hidden">
+  <input name="action">
+  <input name="scanId">
+  <input name="dataUrl">
+  <input name="nonce">
+</form>
+
+
+<script>
+  // THAY bằng URL triển khai Apps Script kết thúc bằng /exec.
+  const API_URL = 'https://script.google.com/a/macros/mayhai.vn/s/AKfycbwwmSltAchUruQDg_CJbMeRten_v8mMsJKB1S9wkcdmPWNfq-ZiVnsIg7dcSTInn5jx/exec';
+
+  const params = new URLSearchParams(location.search);
+  const SCAN_ID = (params.get('scanId') || '').trim();
+
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const preview = document.getElementById('preview');
+  const select = document.getElementById('cameraSelect');
+  const startBtn = document.getElementById('startBtn');
+  const captureBtn = document.getElementById('captureBtn');
+  const retakeBtn = document.getElementById('retakeBtn');
+  const saveBtn = document.getElementById('saveBtn');
+  const statusBox = document.getElementById('status');
+  const recordStatus = document.getElementById('recordStatus');
+  const apiForm = document.getElementById('apiForm');
+  const apiFrame = document.getElementById('apiFrame');
+
+  let stream = null;
+  let capturedDataUrl = '';
+  let recordValid = false;
+  let pendingNonce = '';
+  let requestBusy = false;
+
+  document.getElementById('scanIdText').textContent =
+    SCAN_ID || '(Thiếu SCAN_ID)';
+
+  function status(message) {
+    statusBox.textContent = message;
+  }
+
+  function stopCamera() {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      stream = null;
+    }
+    video.srcObject = null;
+    captureBtn.disabled = true;
+  }
+
+  function validateSetup() {
+    if (!SCAN_ID) {
+      recordStatus.textContent =
+        'Lỗi: thiếu SCAN_ID. Hãy mở trang từ AppSheet.';
+      startBtn.disabled = true;
+      saveBtn.disabled = true;
+      return false;
+    }
+
+    if (!API_URL.startsWith('https://script.google.com/')) {
+      status('Bạn chưa thay API_URL bằng URL Web App Apps Script.');
+      startBtn.disabled = true;
+      saveBtn.disabled = true;
+      return false;
+    }
+    return true;
+  }
+
+  function submitApi(action, dataUrl = '') {
+    return new Promise((resolve, reject) => {
+      if (requestBusy) {
+        reject(new Error('Đang xử lý yêu cầu trước đó.'));
+        return;
+      }
+
+      requestBusy = true;
+      pendingNonce = (
+        crypto.randomUUID
+          ? crypto.randomUUID()
+          : String(Date.now()) + Math.random().toString(36).slice(2)
+      );
+
+      const fields = apiForm.elements;
+      fields.action.value = action;
+      fields.scanId.value = SCAN_ID;
+      fields.dataUrl.value = dataUrl;
+      fields.nonce.value = pendingNonce;
+
+      const timeout = setTimeout(() => {
+        requestBusy = false;
+        pendingNonce = '';
+        reject(new Error(
+          'Không nhận được phản hồi từ Apps Script. ' +
+          'Kiểm tra đăng nhập Google, quyền triển khai và URL API.'
+        ));
+      }, 90000);
+
+      const handler = event => {
+        if (event.source !== apiFrame.contentWindow) return;
+        if (!event.data || event.data.type !== 'PUR_CAMERA_RESULT') return;
+
+        const data = event.data.data;
+        if (!data || data.nonce !== pendingNonce) return;
+
+        clearTimeout(timeout);
+        window.removeEventListener('message', handler);
+        requestBusy = false;
+        pendingNonce = '';
+
+        if (!data.payload || !data.payload.ok) {
+          reject(new Error(
+            data.payload && data.payload.error
+              ? data.payload.error
+              : 'Apps Script trả về lỗi không xác định.'
+          ));
+        } else {
+          resolve(data.payload);
+        }
+      };
+
+      window.addEventListener('message', handler);
+      apiForm.action = API_URL;
+      apiForm.submit();
+    });
+  }
+
+  async function loadCameras() {
+    // Cần xin quyền trước để Chrome trả về tên thiết bị đầy đủ.
+    const temporary = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: false
+    });
+    temporary.getTracks().forEach(track => track.stop());
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cameras = devices.filter(d => d.kind === 'videoinput');
+
+    select.innerHTML = '';
+
+    cameras.forEach((camera, i) => {
+      const option = document.createElement('option');
+      option.value = camera.deviceId;
+      option.textContent = camera.label || ('Camera ' + (i + 1));
+      select.appendChild(option);
+    });
+
+    if (!cameras.length) throw new Error('Không tìm thấy webcam.');
+
+    // Tự ưu tiên thiết bị có tên Hikvision hoặc 1080P.
+    const preferred = cameras.find(c =>
+      /hikvision|1080p/i.test(c.label)
+    );
+    if (preferred) select.value = preferred.deviceId;
+  }
+
+  async function connectCamera() {
+    try {
+      stopCamera();
+
+      if (!navigator.mediaDevices ||
+          !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Trình duyệt không hỗ trợ truy cập camera.');
+      }
+
+      const deviceId = select.value;
+      const videoConstraint = deviceId
+        ? { deviceId: { exact: deviceId } }
+        : true;
+
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: videoConstraint,
+        audio: false
+      });
+
+      video.srcObject = stream;
+      await video.play();
+
+      video.classList.remove('hidden');
+      preview.classList.add('hidden');
+      captureBtn.disabled = false;
+      saveBtn.disabled = true;
+      capturedDataUrl = '';
+
+      status('Camera đã kết nối. Đặt tem trước webcam rồi chụp ảnh.');
+    } catch (err) {
+      status('Không mở được camera: ' + err.message);
+    }
+  }
+
+  function capturePhoto() {
+    if (!stream || !video.videoWidth) {
+      status('Camera chưa sẵn sàng.');
+      return;
+    }
+
+    const maxWidth = 1600;
+    const scale = Math.min(1, maxWidth / video.videoWidth);
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+
+    canvas.getContext('2d').drawImage(
+      video, 0, 0, canvas.width, canvas.height
+    );
+
+    capturedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+    preview.src = capturedDataUrl;
+    preview.classList.remove('hidden');
+    video.classList.add('hidden');
+
+    captureBtn.disabled = true;
+    retakeBtn.classList.remove('hidden');
+    saveBtn.disabled = !recordValid;
+
+    status('Đã chụp ảnh. Kiểm tra ảnh trước khi lưu.');
+  }
+
+  function retakePhoto() {
+    capturedDataUrl = '';
+    preview.classList.add('hidden');
+    video.classList.remove('hidden');
+    retakeBtn.classList.add('hidden');
+    captureBtn.disabled = !stream;
+    saveBtn.disabled = true;
+    status('Hãy căn chỉnh tem và chụp lại.');
+  }
+
+  async function savePhoto() {
+    if (!recordValid || !capturedDataUrl) {
+      status('Chưa có bản ghi hợp lệ hoặc chưa chụp ảnh.');
+      return;
+    }
+
+    saveBtn.disabled = true;
+    captureBtn.disabled = true;
+    retakeBtn.disabled = true;
+    status('Đang gửi ảnh và cập nhật Google Sheets...');
+
+    try {
+      const result = await submitApi('save', capturedDataUrl);
+      status(
+        'LƯU THÀNH CÔNG\n' +
+        'SCAN_ID: ' + result.scanId + '\n' +
+        'Đường dẫn ảnh: ' + result.imagePath + '\n\n' +
+        'Hãy quay lại AppSheet và đồng bộ dữ liệu.'
+      );
+      stopCamera();
+    } catch (err) {
+      status('LƯU THẤT BẠI: ' + err.message);
+      saveBtn.disabled = false;
+      captureBtn.disabled = false;
+      retakeBtn.disabled = false;
+    }
+  }
+
+  startBtn.addEventListener('click', connectCamera);
+  select.addEventListener('change', connectCamera);
+  captureBtn.addEventListener('click', capturePhoto);
+  retakeBtn.addEventListener('click', retakePhoto);
+  saveBtn.addEventListener('click', savePhoto);
+
+  window.addEventListener('beforeunload', stopCamera);
+
+  async function init() {
+    if (!validateSetup()) return;
+
+    if (!navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia) {
+      status('Trình duyệt không hỗ trợ camera. Hãy mở bằng Chrome trên HTTPS.');
+      return;
+    }
+
+    try {
+      status('Đang xác minh SCAN_ID với Apps Script...');
+      const result = await submitApi('check');
+
+      recordValid = true;
+      recordStatus.textContent =
+        'Đã xác nhận bản ghi: ' + result.scanId;
+
+      await loadCameras();
+      status('Đã sẵn sàng. Chọn webcam rồi nhấn Kết nối camera.');
+    } catch (err) {
+      recordValid = false;
+      recordStatus.textContent = 'Chưa xác minh được bản ghi.';
+      status(
+        'LỖI KẾT NỐI API\n' + err.message +
+        '\n\nKiểm tra URL Apps Script, đăng nhập Google và quyền truy cập.'
+      );
+      startBtn.disabled = true;
+      saveBtn.disabled = true;
+    }
+  }
+
+  init();
+</script>
+
+
+</body>
+</html>
