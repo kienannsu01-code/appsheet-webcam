@@ -208,8 +208,20 @@ async function connectCamera() {
   }
   disconnectCamera();
   try {
-    const selected = $('cameraSelect').value;
-    const constraints = { audio:false, video: selected ? {deviceId:{exact:selected}} : {facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080} };
+    
+const selected = $('cameraSelect').value;
+
+const constraints = {
+  audio: false,
+  video: selected
+    ? { deviceId: { exact: selected } }
+    : {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
+};
+
     stream = await navigator.mediaDevices.getUserMedia(constraints);
     $('video').srcObject = stream;
     await $('video').play();
