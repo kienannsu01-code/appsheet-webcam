@@ -2,431 +2,283 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Chụp ảnh tem cỡ</title>
-
-
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#183153">
+  <title>Chụp ảnh tem cỡ · May Hải</title>
   <style>
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      padding: 16px;
-      background: #f3f6fb;
-      color: #202124;
-      font-family: Arial, sans-serif;
-    }
-
-    main {
-      max-width: 720px;
-      margin: auto;
-    }
-
-    h1 { font-size: 24px; }
-
-    .card {
-      background: white;
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 14px;
-      box-shadow: 0 2px 8px #00000012;
-    }
-
-    .scan-id {
-      color: #1558a6;
-      font-weight: bold;
-      overflow-wrap: anywhere;
-      margin-top: 8px;
-    }
-
-    select, button {
-      width: 100%;
-      padding: 13px;
-      margin-top: 10px;
-      border-radius: 8px;
-      font-size: 16px;
-    }
-
-    select { border: 1px solid #c5c9d0; background: white; }
-
-    button {
-      border: 0;
-      background: #1967d2;
-      color: white;
-      font-weight: bold;
-      cursor: pointer;
-    }
-
-    button.secondary { background: #5f6368; }
-    button.save { background: #188038; }
-    button:disabled { opacity: .45; cursor: not-allowed; }
-
-    video, #preview {
-      display: block;
-      width: 100%;
-      max-height: 65vh;
-      margin-top: 12px;
-      background: #111;
-      border-radius: 8px;
-      object-fit: contain;
-    }
-
-    #status {
-      margin-top: 12px;
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-      line-height: 1.5;
-    }
-
-    .hidden { display: none !important; }
-    .hint { color: #5f6368; font-size: 13px; line-height: 1.5; }
+    :root{--navy:#183153;--blue:#245ea8;--bg:#f3f6fa;--border:#d9e1eb;--text:#243247;--muted:#65748a;--green:#18794e;--red:#b42318}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 Arial,sans-serif}
+    header{background:var(--navy);color:#fff;padding:18px 16px}
+    header h1{font-size:22px;margin:0 0 3px} header p{margin:0;opacity:.9}
+    main{width:min(760px,100%);margin:0 auto;padding:14px}
+    .card{background:#fff;border:1px solid var(--border);border-radius:13px;padding:16px;margin-bottom:14px;box-shadow:0 2px 6px #172b4d0a}
+    h2{font-size:18px;margin:0 0 12px}
+    .muted{color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+    .scan{font-weight:700;overflow-wrap:anywhere}
+    .notice{display:none;padding:12px;border-radius:9px;margin-bottom:12px;overflow-wrap:anywhere}
+    .notice.show{display:block}.info{background:#e8f1ff;color:#174b8c}.success{background:#dcfce7;color:#166534}.error{background:#fee2e2;color:#991b1b}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    button,select,input{font:inherit}
+    button{border:0;border-radius:9px;padding:11px 14px;background:var(--blue);color:#fff;font-weight:700;cursor:pointer;min-height:43px}
+    button.secondary{background:#e9eff7;color:var(--navy)}button:disabled{opacity:.55;cursor:wait}
+    select{border:1px solid #c7d1df;border-radius:8px;padding:10px;min-width:180px;max-width:100%;background:#fff}
+    video,canvas,.preview{display:block;width:100%;max-height:62vh;object-fit:contain;background:#101820;border-radius:10px}
+    .preview{background:#eef2f7}
+    .actions{margin-top:12px}
+    .hidden{display:none!important}
+    .pill{display:inline-block;border-radius:20px;padding:3px 9px;background:#edf1f6;font-size:12px;font-weight:700}
+    footer{padding:4px 4px 18px;text-align:center;color:var(--muted);font-size:12px}
+    @media(max-width:480px){main{padding:9px}.card{padding:13px}header h1{font-size:20px}.row button{flex:1}}
   </style>
-
-
 </head>
-
-
 <body>
-<main>
+<header>
   <h1>Chụp ảnh tem cỡ</h1>
-
-
+  <p>May Hải · Ghi ảnh vào bản ghi AppSheet</p>
+</header>
+<main>
+  <div id="notice" class="notice info show" role="status" aria-live="polite">Đang khởi tạo...</div>
   <section class="card">
-    <div>SCAN_ID của bản ghi:</div>
-    <div class="scan-id" id="scanIdText">Đang đọc...</div>
-    <div id="recordStatus">Đang kiểm tra...</div>
+    <h2>Bản ghi cần chụp</h2>
+    <div class="muted">SCAN_ID</div>
+    <div id="scanId" class="scan">Đang đọc mã bản ghi...</div>
+    <div id="recordState" class="muted" style="margin-top:8px">Chưa xác nhận bản ghi.</div>
   </section>
-
-
   <section class="card">
-    <label for="cameraSelect"><b>Chọn webcam</b></label>
-    <select id="cameraSelect"></select>
-
-
-<button id="startBtn">Kết nối camera</button>
-
-<video id="video" autoplay playsinline muted></video>
-<img id="preview" class="hidden" alt="Ảnh tem đã chụp">
-<canvas id="canvas" class="hidden"></canvas>
-
-<button id="captureBtn" disabled>Chụp ảnh</button>
-<button id="retakeBtn" class="secondary hidden">Chụp lại</button>
-<button id="saveBtn" class="save" disabled>
-Xác nhận và lưu vào AppSheet
-</button>
-
-<div id="status" role="status">Đang khởi tạo...</div>
-<p class="hint">
-Nếu trình duyệt yêu cầu quyền camera, hãy chọn Cho phép.
-Sau khi lưu thành công, quay lại AppSheet và đồng bộ dữ liệu.
-</p>
-
+    <h2>1. Kết nối camera</h2>
+    <div class="row">
+      <label for="cameraSelect" class="muted">Chọn webcam</label>
+      <select id="cameraSelect" aria-label="Chọn webcam">
+        <option value="">Camera mặc định</option>
+      </select>
+      <button id="connectBtn" type="button">Kết nối camera</button>
+    </div>
+    <p class="muted">Nếu được hỏi, hãy cho phép trình duyệt sử dụng camera. Camera yêu cầu HTTPS và thường không hoạt động khi trang được mở trong một khung nhúng bị hạn chế.</p>
+    <video id="video" autoplay playsinline muted></video>
+    <div class="row actions">
+      <button id="captureBtn" type="button" disabled>Chụp ảnh</button>
+      <button id="stopBtn" type="button" class="secondary" disabled>Ngắt camera</button>
+    </div>
   </section>
+  <section id="previewCard" class="card hidden">
+    <h2>2. Kiểm tra ảnh</h2>
+    <canvas id="canvas" class="hidden"></canvas>
+    <img id="preview" class="preview" alt="Ảnh tem cỡ đã chụp">
+    <p id="imageInfo" class="muted"></p>
+    <div class="row actions">
+      <button id="retakeBtn" type="button" class="secondary">Chụp lại</button>
+      <button id="saveBtn" type="button">Xác nhận và lưu vào AppSheet</button>
+    </div>
+  </section>
+  <section class="card">
+    <h2>3. Trạng thái</h2>
+    <div id="statusText">Chưa có ảnh được lưu.</div>
+    <p class="muted">Sau khi lưu thành công, quay lại AppSheet và đồng bộ dữ liệu.</p>
+  </section>
+  <footer>TextileFlow · May Hải</footer>
 </main>
 
-
-<!-- Form và iframe dùng để gửi dữ liệu đến Apps Script
-     mà không phụ thuộc google.script.run hoặc fetch CORS. -->
-
-
-<iframe name="apiFrame" id="apiFrame" class="hidden"></iframe>
-<form id="apiForm" method="post" target="apiFrame"
-      enctype="application/x-www-form-urlencoded" class="hidden">
-  <input name="action">
-  <input name="scanId">
-  <input name="dataUrl">
-  <input name="nonce">
+<!-- Form POST cross-origin tới Apps Script; kết quả được trả về bằng postMessage. -->
+<iframe name="gasBridgeFrame" id="gasBridgeFrame" class="hidden" title="Kết nối máy chủ"></iframe>
+<form id="bridgeForm" method="post" target="gasBridgeFrame" class="hidden">
+  <input name="action" id="bridgeAction">
+  <input name="scanId" id="bridgeScanId">
+  <input name="nonce" id="bridgeNonce">
+  <input name="dataUrl" id="bridgeData">
 </form>
 
-
 <script>
-  // THAY bằng URL triển khai Apps Script kết thúc bằng /exec.
-  const API_URL = 'https://script.google.com/a/macros/mayhai.vn/s/AKfycbwwmSltAchUruQDg_CJbMeRten_v8mMsJKB1S9wkcdmPWNfq-ZiVnsIg7dcSTInn5jx/exec';
+'use strict';
+const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwwmSltAchUruQDg_CJbMeRten_v8mMsJKB1S9wkcdmPWNfq-ZiVnsIg7dcSTInn5jx/exec';
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+let scanId = '';
+let stream = null;
+let capturedDataUrl = '';
+let pendingNonce = '';
+let pendingAction = '';
+let requestTimer = null;
 
+const $ = id => document.getElementById(id);
+function notice(message, type='info') {
+  const el = $('notice'); el.className = 'notice show ' + type; el.textContent = message;
+}
+function setStatus(message) { $('statusText').textContent = message; }
+function setBusy(value) {
+  $('connectBtn').disabled = value;
+  $('captureBtn').disabled = value || !stream;
+  $('saveBtn').disabled = value || !capturedDataUrl || !scanId;
+  $('retakeBtn').disabled = value;
+}
+function readScanId() {
   const params = new URLSearchParams(location.search);
-  const SCAN_ID = (params.get('scanId') || '').trim();
-
-  const video = document.getElementById('video');
-  const canvas = document.getElementById('canvas');
-  const preview = document.getElementById('preview');
-  const select = document.getElementById('cameraSelect');
-  const startBtn = document.getElementById('startBtn');
-  const captureBtn = document.getElementById('captureBtn');
-  const retakeBtn = document.getElementById('retakeBtn');
-  const saveBtn = document.getElementById('saveBtn');
-  const statusBox = document.getElementById('status');
-  const recordStatus = document.getElementById('recordStatus');
-  const apiForm = document.getElementById('apiForm');
-  const apiFrame = document.getElementById('apiFrame');
-
-  let stream = null;
-  let capturedDataUrl = '';
-  let recordValid = false;
-  let pendingNonce = '';
-  let requestBusy = false;
-
-  document.getElementById('scanIdText').textContent =
-    SCAN_ID || '(Thiếu SCAN_ID)';
-
-  function status(message) {
-    statusBox.textContent = message;
+  return (params.get('SCAN_ID') || params.get('scanId') || params.get('scan_id') || '').trim();
+}
+function validateConfig() {
+  if (!GAS_WEB_APP_URL || GAS_WEB_APP_URL.includes('PASTE_YOUR_')) {
+    throw new Error('Chưa cấu hình URL Web App Apps Script trong index.html.');
   }
-
-  function stopCamera() {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      stream = null;
-    }
-    video.srcObject = null;
-    captureBtn.disabled = true;
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec(?:\?.*)?$/.test(GAS_WEB_APP_URL)) {
+    throw new Error('URL Apps Script chưa đúng. Hãy dùng đường dẫn triển khai kết thúc bằng /exec.');
   }
-
-  function validateSetup() {
-    if (!SCAN_ID) {
-      recordStatus.textContent =
-        'Lỗi: thiếu SCAN_ID. Hãy mở trang từ AppSheet.';
-      startBtn.disabled = true;
-      saveBtn.disabled = true;
-      return false;
-    }
-
-    if (!API_URL.startsWith('https://script.google.com/')) {
-      status('Bạn chưa thay API_URL bằng URL Web App Apps Script.');
-      startBtn.disabled = true;
-      saveBtn.disabled = true;
-      return false;
-    }
-    return true;
-  }
-
-  function submitApi(action, dataUrl = '') {
-    return new Promise((resolve, reject) => {
-      if (requestBusy) {
-        reject(new Error('Đang xử lý yêu cầu trước đó.'));
-        return;
-      }
-
-      requestBusy = true;
-      pendingNonce = (
-        crypto.randomUUID
-          ? crypto.randomUUID()
-          : String(Date.now()) + Math.random().toString(36).slice(2)
-      );
-
-      const fields = apiForm.elements;
-      fields.action.value = action;
-      fields.scanId.value = SCAN_ID;
-      fields.dataUrl.value = dataUrl;
-      fields.nonce.value = pendingNonce;
-
-      const timeout = setTimeout(() => {
-        requestBusy = false;
-        pendingNonce = '';
-        reject(new Error(
-          'Không nhận được phản hồi từ Apps Script. ' +
-          'Kiểm tra đăng nhập Google, quyền triển khai và URL API.'
-        ));
-      }, 90000);
-
-      const handler = event => {
-        if (event.source !== apiFrame.contentWindow) return;
-        if (!event.data || event.data.type !== 'PUR_CAMERA_RESULT') return;
-
-        const data = event.data.data;
-        if (!data || data.nonce !== pendingNonce) return;
-
-        clearTimeout(timeout);
-        window.removeEventListener('message', handler);
-        requestBusy = false;
-        pendingNonce = '';
-
-        if (!data.payload || !data.payload.ok) {
-          reject(new Error(
-            data.payload && data.payload.error
-              ? data.payload.error
-              : 'Apps Script trả về lỗi không xác định.'
-          ));
-        } else {
-          resolve(data.payload);
-        }
-      };
-
-      window.addEventListener('message', handler);
-      apiForm.action = API_URL;
-      apiForm.submit();
+}
+function sendBridge(action, dataUrl='') {
+  return new Promise((resolve, reject) => {
+    try { validateConfig(); } catch (e) { reject(e); return; }
+    if (!scanId) { reject(new Error('Thiếu SCAN_ID. Hãy mở trang từ một bản ghi trong AppSheet.')); return; }
+    if (pendingNonce) { reject(new Error('Đang có yêu cầu xử lý. Vui lòng chờ.')); return; }
+    const nonce = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
+    pendingNonce = nonce; pendingAction = action;
+    $('bridgeForm').action = GAS_WEB_APP_URL;
+    $('bridgeAction').value = action;
+    $('bridgeScanId').value = scanId;
+    $('bridgeNonce').value = nonce;
+    $('bridgeData').value = dataUrl;
+    requestTimer = setTimeout(() => {
+      pendingNonce = ''; pendingAction = '';
+      reject(new Error('Máy chủ không phản hồi. Kiểm tra URL /exec, quyền triển khai và đăng nhập Google rồi thử lại.'));
+    }, 45000);
+    $('bridgeForm').submit();
+  });
+}
+window.addEventListener('message', event => {
+  const msg = event.data;
+  if (!msg || msg.type !== 'PUR_CAMERA_RESULT' || !msg.data) return;
+  // nonce ngẫu nhiên dùng để ghép phản hồi với đúng yêu cầu đang chờ.
+  if (!pendingNonce || msg.data.nonce !== pendingNonce) return;
+  clearTimeout(requestTimer);
+  pendingNonce = '';
+  pendingAction = '';
+  const payload = msg.data.payload || {};
+  window.__bridgeResolve && window.__bridgeResolve(payload);
+});
+const originalSendBridge = sendBridge;
+sendBridge = function(action, dataUrl='') {
+  return new Promise((resolve, reject) => {
+    window.__bridgeResolve = payload => {
+      window.__bridgeResolve = null;
+      if (payload.ok) resolve(payload);
+      else reject(new Error(payload.error || 'Máy chủ báo lỗi.'));
+    };
+    originalSendBridge(action, dataUrl).catch(err => {
+      window.__bridgeResolve = null;
+      reject(err);
     });
+  });
+};
+
+async function verifyRecord() {
+  scanId = readScanId();
+  $('scanId').textContent = scanId || '(Thiếu SCAN_ID)';
+  if (!scanId) {
+    $('recordState').textContent = 'Không có mã bản ghi trong URL.';
+    notice('Lỗi: thiếu SCAN_ID. Hãy mở trang từ Action của đúng bản ghi trong AppSheet.', 'error');
+    setStatus('Chưa xác định được bản ghi. Chưa thể lưu ảnh.');
+    return;
   }
-
-  async function loadCameras() {
-    // Cần xin quyền trước để Chrome trả về tên thiết bị đầy đủ.
-    const temporary = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: false
-    });
-    temporary.getTracks().forEach(track => track.stop());
-
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const cameras = devices.filter(d => d.kind === 'videoinput');
-
-    select.innerHTML = '';
-
-    cameras.forEach((camera, i) => {
-      const option = document.createElement('option');
-      option.value = camera.deviceId;
-      option.textContent = camera.label || ('Camera ' + (i + 1));
-      select.appendChild(option);
-    });
-
-    if (!cameras.length) throw new Error('Không tìm thấy webcam.');
-
-    // Tự ưu tiên thiết bị có tên Hikvision hoặc 1080P.
-    const preferred = cameras.find(c =>
-      /hikvision|1080p/i.test(c.label)
-    );
-    if (preferred) select.value = preferred.deviceId;
+  $('recordState').textContent = 'Đang kiểm tra bản ghi trên máy chủ...';
+  try {
+    const result = await sendBridge('check');
+    $('recordState').textContent = 'Đã xác nhận bản ghi: ' + result.scanId;
+    notice('Đã xác nhận bản ghi. Bạn có thể kết nối camera.', 'success');
+    setStatus('Sẵn sàng chụp ảnh cho SCAN_ID ' + scanId + '.');
+  } catch (err) {
+    $('recordState').textContent = 'Không xác nhận được bản ghi.';
+    notice('Không kiểm tra được SCAN_ID: ' + err.message, 'error');
+    setStatus('Chưa thể lưu ảnh.');
   }
-
-  async function connectCamera() {
-    try {
-      stopCamera();
-
-      if (!navigator.mediaDevices ||
-          !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Trình duyệt không hỗ trợ truy cập camera.');
-      }
-
-      const deviceId = select.value;
-      const videoConstraint = deviceId
-        ? { deviceId: { exact: deviceId } }
-        : true;
-
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: videoConstraint,
-        audio: false
-      });
-
-      video.srcObject = stream;
-      await video.play();
-
-      video.classList.remove('hidden');
-      preview.classList.add('hidden');
-      captureBtn.disabled = false;
-      saveBtn.disabled = true;
-      capturedDataUrl = '';
-
-      status('Camera đã kết nối. Đặt tem trước webcam rồi chụp ảnh.');
-    } catch (err) {
-      status('Không mở được camera: ' + err.message);
-    }
+}
+async function listCameras(preferredId='') {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const cameras = devices.filter(d => d.kind === 'videoinput');
+  $('cameraSelect').innerHTML = '';
+  cameras.forEach((camera, i) => {
+    const option = document.createElement('option');
+    option.value = camera.deviceId;
+    option.textContent = camera.label || ('Webcam ' + (i + 1));
+    $('cameraSelect').appendChild(option);
+  });
+  if (preferredId && cameras.some(c => c.deviceId === preferredId)) $('cameraSelect').value = preferredId;
+}
+async function connectCamera() {
+  if (!scanId) { notice('Thiếu SCAN_ID. Hãy mở trang từ AppSheet trước.', 'error'); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    notice('Trình duyệt không hỗ trợ camera hoặc trang không chạy trên HTTPS.', 'error'); return;
   }
-
-  function capturePhoto() {
-    if (!stream || !video.videoWidth) {
-      status('Camera chưa sẵn sàng.');
-      return;
-    }
-
-    const maxWidth = 1600;
-    const scale = Math.min(1, maxWidth / video.videoWidth);
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
-
-    canvas.getContext('2d').drawImage(
-      video, 0, 0, canvas.width, canvas.height
-    );
-
-    capturedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
-    preview.src = capturedDataUrl;
-    preview.classList.remove('hidden');
-    video.classList.add('hidden');
-
-    captureBtn.disabled = true;
-    retakeBtn.classList.remove('hidden');
-    saveBtn.disabled = !recordValid;
-
-    status('Đã chụp ảnh. Kiểm tra ảnh trước khi lưu.');
+  disconnectCamera();
+  try {
+    const selected = $('cameraSelect').value;
+    const constraints = { audio:false, video: selected ? {deviceId:{exact:selected}} : {facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080} };
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
+    $('video').srcObject = stream;
+    await $('video').play();
+    await listCameras(selected);
+    $('captureBtn').disabled = false;
+    $('stopBtn').disabled = false;
+    notice('Camera đã kết nối. Đưa tem vào khung hình rồi nhấn Chụp ảnh.', 'success');
+  } catch (err) {
+    stream = null;
+    const detail = err && err.name === 'NotAllowedError' ? 'Quyền camera bị từ chối. Hãy cấp quyền camera cho website trong cài đặt trình duyệt.' :
+      err && err.name === 'NotFoundError' ? 'Không tìm thấy camera trên thiết bị.' :
+      err && err.name === 'NotReadableError' ? 'Camera đang được ứng dụng khác sử dụng.' : (err.message || String(err));
+    notice('Không kết nối được camera: ' + detail, 'error');
   }
-
-  function retakePhoto() {
-    capturedDataUrl = '';
-    preview.classList.add('hidden');
-    video.classList.remove('hidden');
-    retakeBtn.classList.add('hidden');
-    captureBtn.disabled = !stream;
-    saveBtn.disabled = true;
-    status('Hãy căn chỉnh tem và chụp lại.');
+}
+function disconnectCamera() {
+  if (stream) stream.getTracks().forEach(track => track.stop());
+  stream = null; $('video').srcObject = null;
+  $('captureBtn').disabled = true; $('stopBtn').disabled = true;
+}
+function capturePhoto() {
+  const video = $('video');
+  if (!stream || !video.videoWidth || !video.videoHeight) {
+    notice('Camera chưa sẵn sàng. Hãy kết nối camera lại.', 'error'); return;
   }
-
-  async function savePhoto() {
-    if (!recordValid || !capturedDataUrl) {
-      status('Chưa có bản ghi hợp lệ hoặc chưa chụp ảnh.');
-      return;
-    }
-
-    saveBtn.disabled = true;
-    captureBtn.disabled = true;
-    retakeBtn.disabled = true;
-    status('Đang gửi ảnh và cập nhật Google Sheets...');
-
-    try {
-      const result = await submitApi('save', capturedDataUrl);
-      status(
-        'LƯU THÀNH CÔNG\n' +
-        'SCAN_ID: ' + result.scanId + '\n' +
-        'Đường dẫn ảnh: ' + result.imagePath + '\n\n' +
-        'Hãy quay lại AppSheet và đồng bộ dữ liệu.'
-      );
-      stopCamera();
-    } catch (err) {
-      status('LƯU THẤT BẠI: ' + err.message);
-      saveBtn.disabled = false;
-      captureBtn.disabled = false;
-      retakeBtn.disabled = false;
-    }
-  }
-
-  startBtn.addEventListener('click', connectCamera);
-  select.addEventListener('change', connectCamera);
-  captureBtn.addEventListener('click', capturePhoto);
-  retakeBtn.addEventListener('click', retakePhoto);
-  saveBtn.addEventListener('click', savePhoto);
-
-  window.addEventListener('beforeunload', stopCamera);
-
-  async function init() {
-    if (!validateSetup()) return;
-
-    if (!navigator.mediaDevices ||
-        !navigator.mediaDevices.getUserMedia) {
-      status('Trình duyệt không hỗ trợ camera. Hãy mở bằng Chrome trên HTTPS.');
-      return;
-    }
-
-    try {
-      status('Đang xác minh SCAN_ID với Apps Script...');
-      const result = await submitApi('check');
-
-      recordValid = true;
-      recordStatus.textContent =
-        'Đã xác nhận bản ghi: ' + result.scanId;
-
-      await loadCameras();
-      status('Đã sẵn sàng. Chọn webcam rồi nhấn Kết nối camera.');
-    } catch (err) {
-      recordValid = false;
-      recordStatus.textContent = 'Chưa xác minh được bản ghi.';
-      status(
-        'LỖI KẾT NỐI API\n' + err.message +
-        '\n\nKiểm tra URL Apps Script, đăng nhập Google và quyền truy cập.'
-      );
-      startBtn.disabled = true;
-      saveBtn.disabled = true;
-    }
-  }
-
-  init();
+  const canvas = $('canvas');
+  const maxWidth = 1920;
+  const scale = Math.min(1, maxWidth / video.videoWidth);
+  canvas.width = Math.round(video.videoWidth * scale);
+  canvas.height = Math.round(video.videoHeight * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  capturedDataUrl = canvas.toDataURL('image/jpeg', 0.86);
+  $('preview').src = capturedDataUrl;
+  $('previewCard').classList.remove('hidden');
+  $('imageInfo').textContent = canvas.width + ' × ' + canvas.height + ' px · khoảng ' + Math.round(capturedDataUrl.length * 0.75 / 1024) + ' KB';
+  $('saveBtn').disabled = false;
+  setStatus('Đã chụp ảnh xem trước. Kiểm tra ảnh trước khi lưu.');
+  notice('Đã chụp ảnh. Hãy kiểm tra rồi xác nhận lưu.', 'success');
+  $('previewCard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+async function savePhoto() {
+  if (!scanId) { notice('Thiếu SCAN_ID. Không thể lưu ảnh.', 'error'); return; }
+  if (!capturedDataUrl) { notice('Bạn cần chụp ảnh trước.', 'error'); return; }
+  const approximateBytes = Math.floor((capturedDataUrl.split(',')[1] || '').length * 3 / 4);
+  if (approximateBytes > MAX_IMAGE_BYTES) { notice('Ảnh vượt giới hạn 8 MB. Hãy chụp lại.', 'error'); return; }
+  setBusy(true); notice('Đang lưu ảnh và cập nhật bản ghi...', 'info');
+  try {
+    const result = await sendBridge('save', capturedDataUrl);
+    notice('Lưu ảnh thành công. ' + (result.message || ''), 'success');
+    setStatus('ĐÃ LƯU · SCAN_ID: ' + scanId + ' · Tệp: ' + (result.imagePath || 'đã cập nhật'));
+    $('recordState').textContent = 'Đã lưu ảnh cho bản ghi ' + scanId;
+    $('previewCard').classList.add('hidden');
+  } catch (err) {
+    notice('Lưu ảnh thất bại: ' + err.message, 'error');
+    setStatus('Lưu chưa thành công. Giữ nguyên ảnh và thử lại sau khi kiểm tra cấu hình.');
+  } finally { setBusy(false); }
+}
+$('connectBtn').addEventListener('click', connectCamera);
+$('captureBtn').addEventListener('click', capturePhoto);
+$('stopBtn').addEventListener('click', disconnectCamera);
+$('retakeBtn').addEventListener('click', () => {
+  capturedDataUrl = ''; $('preview').removeAttribute('src'); $('previewCard').classList.add('hidden');
+  $('saveBtn').disabled = true; notice('Bạn có thể chụp lại ảnh.', 'info');
+});
+$('saveBtn').addEventListener('click', savePhoto);
+$('cameraSelect').addEventListener('change', () => { if (stream) connectCamera(); });
+window.addEventListener('beforeunload', disconnectCamera);
+verifyRecord().then(() => listCameras().catch(() => {}));
 </script>
-
-
 </body>
 </html>
